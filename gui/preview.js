@@ -72,16 +72,17 @@
         const text = fillPlaceholders(el.text, data) || '000';
         const h = el.bar_height_mm || (el.bar_height_dots ? (el.bar_height_dots / dpi) * 25.4 : 10);
         const moduleMm = (el.module_width || 2) / (dpi / 25.4); // modulo reale in mm
-        let out, w;
+        let out, w, drawX = x;
         if (typeof window !== 'undefined' && window.Barcode) {
-          const r = window.Barcode.code128SVG(text, x, y, h, moduleMm);
+          drawX = window.Barcode.alignedX('barcode128', text, x, moduleMm, el.align, el.box_width_mm);
+          const r = window.Barcode.code128SVG(text, drawX, y, h, moduleMm);
           out = r.svg; w = r.width;
         } else {
           w = Math.max(20, (text.length || 6) * 2.2);
           out = barcodeBars(text, x, y, w, h);
         }
         if (el.show_text !== false) {
-          out += `<text x="${(x + w / 2).toFixed(2)}" y="${(y + h + 3).toFixed(2)}" font-size="2.6" font-family="monospace" text-anchor="middle" fill="#111">${esc(text)}</text>`;
+          out += `<text x="${(drawX + w / 2).toFixed(2)}" y="${(y + h + 3).toFixed(2)}" font-size="2.6" font-family="monospace" text-anchor="middle" fill="#111">${esc(text)}</text>`;
         }
         return out;
       }
@@ -91,17 +92,18 @@
         const text = fillPlaceholders(el.text, data) || (el.type === 'ean13' ? '000000000000' : '000');
         const h = el.bar_height_mm || 10;
         const moduleMm = (el.module_width || 2) / (dpi / 25.4);
-        let out = '', w = 20, label = text;
+        let out = '', w = 20, label = text, drawX = x;
         if (typeof window !== 'undefined' && window.Barcode) {
+          drawX = window.Barcode.alignedX(el.type, text, x, moduleMm, el.align, el.box_width_mm);
           let r;
-          if (el.type === 'ean13') r = window.Barcode.ean13SVG(text, x, y, h, moduleMm);
-          else if (el.type === 'code93') r = window.Barcode.code93SVG(text, x, y, h, moduleMm);
-          else r = window.Barcode.code39SVG(text, x, y, h, moduleMm);
+          if (el.type === 'ean13') r = window.Barcode.ean13SVG(text, drawX, y, h, moduleMm);
+          else if (el.type === 'code93') r = window.Barcode.code93SVG(text, drawX, y, h, moduleMm);
+          else r = window.Barcode.code39SVG(text, drawX, y, h, moduleMm);
           if (r) { out = r.svg; w = r.width; if (r.digits) label = r.digits; }
         }
         if (!out) out = barcodeBars(text, x, y, Math.max(20, text.length * 2.2), h);
         if (el.show_text !== false) {
-          out += `<text x="${(x + w / 2).toFixed(2)}" y="${(y + h + 3).toFixed(2)}" font-size="2.6" font-family="monospace" text-anchor="middle" fill="#111">${esc(label)}</text>`;
+          out += `<text x="${(drawX + w / 2).toFixed(2)}" y="${(y + h + 3).toFixed(2)}" font-size="2.6" font-family="monospace" text-anchor="middle" fill="#111">${esc(label)}</text>`;
         }
         return out;
       }

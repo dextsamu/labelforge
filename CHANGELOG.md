@@ -2,6 +2,15 @@
 
 Tutte le modifiche rilevanti a LabelForge. / All notable changes to LabelForge.
 
+## v1.17.0
+- 🎯 **Allineamento barcode** (grazie @PaloTrucoo — Juan Manuel): nuove proprietà `align`
+  (sinistra/centro/destra) e `box_width_mm` per gli elementi barcode (Code128, Code39, Code93,
+  EAN‑13). Il codice viene centrato o allineato a destra dentro una larghezza di riferimento.
+  Applicato in modo coerente sia all'anteprima sia a tutti i backend (ZPL/TSPL/EPL/EZPL), così
+  stampa e anteprima restano identiche. Retrocompatibile: default "sinistra" = nessun cambiamento. /
+  Barcode alignment (left/center/right within a reference box width), consistent across preview and
+  all backends. Thanks @PaloTrucoo.
+
 ## v1.16.1
 - 🐛 Fix (issue #1, grazie @gyfooya): in modalità Editor, selezionando un altro modello ora si
   ricarica l'editor con quel modello (prima si aggiornava solo l'anteprima e serviva riclickare

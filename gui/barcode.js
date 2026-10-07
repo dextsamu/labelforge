@@ -168,7 +168,38 @@
     return { svg: out, width: cursor - x };
   }
 
-  const api = { encode128B, code128SVG, encode39, code39SVG, encodeEAN13, ean13SVG, ean13CheckDigit, encode93, code93SVG, PATTERNS };
+  // ---------------- Allineamento (centrato/destro) ----------------
+  // Calcola la larghezza codificata (in "moduli", non in mm) per i tipi di barcode
+  // gestiti qui. Ritorna null se il tipo non è supportato o il testo non è valido
+  // (es. EAN-13 con lunghezza errata): in quel caso il chiamante deve usare x_mm invariato.
+  function widthModules(type, text) {
+    switch (type) {
+      case 'barcode128': return encode128B(text).reduce((a, b) => a + b, 0);
+      case 'code39': return encode39(text).reduce((a, b) => a + b, 0);
+      case 'code93': return encode93(text).reduce((a, b) => a + b, 0);
+      case 'ean13': { const e = encodeEAN13(text); return e ? e.bits.length : null; }
+      default: return null;
+    }
+  }
+
+  // Dato un x_mm di partenza (bordo sinistro "naturale"), un modulo in mm e una
+  // "box" di riferimento larga box_width_mm che inizia anch'essa a x_mm, ritorna
+  // il nuovo x_mm che centra (o allinea a destra) il barcode dentro quella box.
+  // Se align è 'left'/assente, o manca box_width_mm, o il tipo non è calcolabile,
+  // ritorna x_mm invariato (nessuna sorpresa per template esistenti).
+  function alignedX(type, text, xMm, moduleMm, align, boxWidthMm) {
+    const x = Number(xMm) || 0;
+    if (!align || align === 'left' || !boxWidthMm || !moduleMm) return x;
+    const mods = widthModules(type, text);
+    if (mods == null) return x;
+    const widthMm = mods * moduleMm;
+    const slack = Math.max(0, Number(boxWidthMm) - widthMm);
+    if (align === 'center') return x + slack / 2;
+    if (align === 'right') return x + slack;
+    return x;
+  }
+
+  const api = { encode128B, code128SVG, encode39, code39SVG, encodeEAN13, ean13SVG, ean13CheckDigit, encode93, code93SVG, widthModules, alignedX, PATTERNS };
   if (typeof window !== 'undefined') window.Barcode = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

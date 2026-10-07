@@ -34,7 +34,7 @@ Progetta le etichette visivamente, compila i campi (o scansionali) e stampa via 
 | 🖨️ **Connessioni multiple** | Rete (porta raw 9100), stampante Windows per nome (API Win32 — funziona con qualsiasi porta, anche quelle virtuali di Zebra Setup Utilities), o device USB su Linux/Mac. |
 | 🌐 **Più linguaggi** | Stampa in **ZPL** (testato) e, in via sperimentale, **TSPL / EPL / CPCL / EZPL**. Stessi editor e anteprima; cambiano solo i comandi generati. |
 | 🧩 **Template dinamici** | Template JSON con testo, codici a barre (Code128, Code39, Code93, EAN‑13), QR code, DataMatrix, linee e riquadri. Misure in mm; 203/300 dpi. |
-| 🎨 **Editor visuale** | Anteprima live con **barcode Code128 e QR reali**; seleziona, trascina, ridimensiona e aggancia gli elementi a una griglia. Nessuna modifica manuale del JSON. |
+| 🎨 **Editor visuale** | Anteprima live con **barcode Code128 e QR reali**; seleziona, trascina, ridimensiona e aggancia gli elementi a una griglia. Allineamento barcode (sinistra/centro/destra entro una larghezza box). Nessuna modifica manuale del JSON. |
 | ⌨️ **Campi intelligenti** | Campi `{{campo}}` come testo, menu a tendina o liste con quantità per voce (una etichetta per unità). |
 | ⚡ **Scansiona e stampa** | Stampa automatica dopo la scansione (il lettore si comporta come tastiera) — ideale per raffiche. |
 | 📄 **Stampa in blocco da CSV** | Importa un CSV e stampa una etichetta per riga (le colonne riempiono i `{{campi}}`). |
@@ -202,8 +202,15 @@ porta, anche virtuali); via rete su porta 9100; su Linux/Mac scrivendo sul devic
 
 ## 🙌 Crediti
 
-Grazie a tutti coloro che segnalano problemi e contribuiscono. Un grazie speciale a **@gyfooya**
-per il pacchetto [AUR di Arch Linux](https://aur.archlinux.org/packages/labelforge-bin) e i primi feedback.
+Grazie a tutti coloro che segnalano problemi e contribuiscono.
+
+**Contributori**
+
+- [@dextsamu](https://github.com/dextsamu) — autore e maintainer
+- [@gyfooya](https://github.com/gyfooya) — pacchetto [AUR di Arch Linux](https://aur.archlinux.org/packages/labelforge-bin), primi feedback e fix del ricaricamento dell'editor (#1)
+- [@PaloTrucoo](https://github.com/PaloTrucoo) (Juan Manuel) — allineamento dei codici a barre (sinistra/centro/destra)
+
+Vuoi comparire in questa lista? I contributi sono benvenuti — vedi [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📄 Licenza
 

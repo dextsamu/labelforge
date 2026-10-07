@@ -552,12 +552,13 @@ function updateUndoButtons() {
 }
 
 // Etichette come chiavi i18n (risolte con t() al render).
+const ALIGN_OPTS = [['left', 'align.left'], ['center', 'align.center'], ['right', 'align.right']];
 const ELEMENT_PROPS = {
   text: [['text', 'p.text', 'text', 'full'], ['height_mm', 'p.h', 'number'], ['width_mm', 'p.w', 'number'], ['font', 'p.font', 'text']],
-  barcode128: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool']],
-  code39: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool']],
-  ean13: [['text', 'p.dataDigits', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool']],
-  code93: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool']],
+  barcode128: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
+  code39: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
+  ean13: [['text', 'p.dataDigits', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
+  code93: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   datamatrix: [['text', 'p.data', 'text', 'full'], ['magnification', 'p.dmsize', 'number']],
   qrcode: [['text', 'p.data', 'text', 'full'], ['magnification', 'p.mag', 'number']],
   box: [['width_mm', 'p.w', 'number'], ['height_mm', 'p.h', 'number'], ['thickness_mm', 'p.thick', 'number']],
@@ -611,7 +612,7 @@ function renderEditorElements() {
       const grid = document.createElement('div'); grid.className = 'grid';
       const common = [['x_mm', 'X (mm)', 'number'], ['y_mm', 'Y (mm)', 'number']];
       const props = common.concat(ELEMENT_PROPS[elem.type] || []);
-      props.forEach(([prop, label, kind, span]) => {
+      props.forEach(([prop, label, kind, span, options]) => {
         const fld = document.createElement('div'); fld.className = 'fld' + (span === 'full' ? ' full' : '');
         const l = document.createElement('label'); l.textContent = t(label); fld.appendChild(l);
         let input;
@@ -619,6 +620,10 @@ function renderEditorElements() {
           input = document.createElement('select');
           [['true', t('bool.yes')], ['false', t('bool.no')]].forEach(([v, txt]) => { const o = document.createElement('option'); o.value = v; o.textContent = txt; input.appendChild(o); });
           input.value = String(elem[prop] !== false);
+        } else if (kind === 'select') {
+          input = document.createElement('select');
+          (options || []).forEach(([v, txt]) => { const o = document.createElement('option'); o.value = v; o.textContent = t(txt); input.appendChild(o); });
+          input.value = elem[prop] || (options && options[0] && options[0][0]) || '';
         } else {
           input = document.createElement('input'); input.type = kind === 'number' ? 'number' : 'text'; if (kind === 'number') input.step = '0.5';
           input.value = elem[prop] ?? '';
@@ -668,10 +673,11 @@ function readElementRow(row, prevType) {
     if (prop === 'enabled') { obj.enabled = inp.checked; return; }
     if (prop === 'show_text') { obj.show_text = (val === 'true'); return; }
     if (val === '') return;
-    const numeric = ['x_mm', 'y_mm', 'height_mm', 'width_mm', 'bar_height_mm', 'module_width', 'magnification', 'thickness_mm'];
+    const numeric = ['x_mm', 'y_mm', 'height_mm', 'width_mm', 'bar_height_mm', 'module_width', 'magnification', 'thickness_mm', 'box_width_mm'];
     obj[prop] = numeric.includes(prop) ? Number(val) : val;
   });
   if (obj.enabled === true) delete obj.enabled; // default true: non serve salvarlo
+  if (obj.align === 'left') delete obj.align; // default: non serve salvarlo
   return obj;
 }
 
