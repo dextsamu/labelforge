@@ -55,6 +55,11 @@
     .overlay .hit:hover { fill: rgba(37,99,235,0.08); }
     .overlay .sel { fill: rgba(37,99,235,0.10); stroke: var(--accent); stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }
     .overlay .handle { fill: #fff; stroke: var(--accent); stroke-width: 0.3; cursor: nwse-resize; }
+    .overlay .guide { fill: rgba(245,158,11,0.06); stroke: #f59e0b; stroke-width: 0.25; stroke-dasharray: 1 0.7; pointer-events: none; }
+    .overlay .guide-axis { stroke: #f59e0b; stroke-width: 0.15; stroke-dasharray: 0.6 0.6; pointer-events: none; }
+    .alignseg { display: inline-flex; gap: 2px; margin-left: 4px; }
+    .alignseg .qbtn { min-width: 28px; }
+    .alignseg .qbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
     .overlay .gridline { stroke: #c7d0da; stroke-width: 0.08; }
     .overlay .gridline.major { stroke: #aab4c0; stroke-width: 0.15; }
 

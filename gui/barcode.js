@@ -192,14 +192,43 @@
     if (!align || align === 'left' || !boxWidthMm || !moduleMm) return x;
     const mods = widthModules(type, text);
     if (mods == null) return x;
-    const widthMm = mods * moduleMm;
-    const slack = Math.max(0, Number(boxWidthMm) - widthMm);
+    return alignInBox(x, mods * moduleMm, align, boxWidthMm);
+  }
+
+  // Versione generica: dato un oggetto largo widthMm e una box che parte da xMm,
+  // ritorna la x di partenza per allinearlo a sinistra/centro/destra.
+  function alignInBox(xMm, widthMm, align, boxWidthMm) {
+    const x = Number(xMm) || 0;
+    const box = Number(boxWidthMm) || 0;
+    if (!align || align === 'left' || box <= 0) return x;
+    const slack = Math.max(0, box - (Number(widthMm) || 0));
     if (align === 'center') return x + slack / 2;
     if (align === 'right') return x + slack;
     return x;
   }
 
-  const api = { encode128B, code128SVG, encode39, code39SVG, encodeEAN13, ean13SVG, ean13CheckDigit, encode93, code93SVG, widthModules, alignedX, PATTERNS };
+  // Larghezza effettiva della box di allineamento (v1.18):
+  // - box_width_mm > 0  → quella indicata;
+  // - altrimenti, se l'allineamento è centro/destra → "centra sull'etichetta":
+  //   box = larghezza etichetta − 2 × x_mm (x_mm fa da margine su entrambi i lati).
+  function effectiveBoxWidth(el, labelWidthMm) {
+    if (!el) return 0;
+    const b = Number(el.box_width_mm);
+    if (b > 0) return b;
+    if (!el.align || el.align === 'left') return 0;
+    const W = Number(labelWidthMm) || 0;
+    const x = Number(el.x_mm ?? el.x) || 0;
+    return Math.max(0, W - 2 * x);
+  }
+
+  // Copia dell'elemento con box_width_mm risolta (usata da anteprima e backend).
+  function withBox(el, labelWidthMm) {
+    if (!el || !el.align || el.align === 'left') return el;
+    const b = effectiveBoxWidth(el, labelWidthMm);
+    return b > 0 ? Object.assign({}, el, { box_width_mm: b }) : el;
+  }
+
+  const api = { encode128B, code128SVG, encode39, code39SVG, encodeEAN13, ean13SVG, ean13CheckDigit, encode93, code93SVG, widthModules, alignedX, alignInBox, effectiveBoxWidth, withBox, PATTERNS };
   if (typeof window !== 'undefined') window.Barcode = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

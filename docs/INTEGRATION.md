@@ -167,4 +167,7 @@ If the connection is omitted, the HTTP server / watch folder use the app's saved
 
 - Output language follows the template's `language` field (ZPL by default; TSPL/EPL/CPCL/EZPL experimental).
 - Barcode/QR fields with empty data are skipped (avoids printer jams).
+- Layout (positions, alignment, sizes) lives in the template, not in the job: a field aligned
+  `center` in the template stays centered whatever value you send (e.g. variable‑length codes).
+  See the *Templates* section of the README for `align` / `box_width_mm`.
 - For LAN exposure use `--host 0.0.0.0` **with** a `--token`, and restrict access at the firewall level.

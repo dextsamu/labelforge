@@ -66,7 +66,12 @@
         // altezza carattere in mm: da height_mm o da height_dots
         const hmm = el.height_mm || (el.height_dots ? (el.height_dots / dpi) * 25.4 : 3);
         const fontSize = hmm * 0.95;
-        return `<text x="${x}" y="${y}" font-size="${fontSize.toFixed(2)}" font-family="Arial, sans-serif" dominant-baseline="text-before-edge" fill="#111">${esc(text) || ' '}</text>`;
+        // Allineamento: ancoraggio SVG al centro/fine della box (come ^FB in ZPL).
+        const boxW = Number(el.box_width_mm) || 0;
+        let tx = x, anchor = 'start';
+        if (el.align === 'center' && boxW > 0) { tx = x + boxW / 2; anchor = 'middle'; }
+        else if (el.align === 'right' && boxW > 0) { tx = x + boxW; anchor = 'end'; }
+        return `<text x="${tx.toFixed(2)}" y="${y}" font-size="${fontSize.toFixed(2)}" font-family="Arial, sans-serif" dominant-baseline="text-before-edge" text-anchor="${anchor}" fill="#111">${esc(text) || ' '}</text>`;
       }
       case 'barcode128': {
         const text = fillPlaceholders(el.text, data) || '000';
@@ -140,10 +145,11 @@
     const W = Number(template.width_mm) || 50;
     const H = Number(template.height_mm) || 25;
     const enabledSet = Array.isArray(enabledIndices) ? new Set(enabledIndices) : null;
+    const B = typeof window !== 'undefined' ? window.Barcode : null;
     let body = '';
     (template.elements || []).forEach((el, i) => {
       const on = enabledSet ? enabledSet.has(i) : el.enabled !== false;
-      if (on) body += renderElement(el, dpi, data, qrCache);
+      if (on) body += renderElement(B ? B.withBox(el, W) : el, dpi, data, qrCache);
     });
     return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;">
       <rect x="0" y="0" width="${W}" height="${H}" fill="#fff" stroke="#cbd5e1" stroke-width="0.3"/>
@@ -152,21 +158,33 @@
   }
 
   // Bounding box (in mm) di ogni elemento, per l'interazione (selezione/trascinamento) nell'editor.
+  // Se l'elemento è allineato, include anche `guide` = { x, w } della box (per la guida visiva).
   function computeBoxes(template, data) {
     const dpi = template.dpi || 203;
+    const W = Number(template.width_mm) || 50;
+    const B = typeof window !== 'undefined' ? window.Barcode : null;
     const boxes = [];
-    (template.elements || []).forEach((el, index) => {
-      const x = Number(el.x_mm) || 0;
+    (template.elements || []).forEach((raw, index) => {
+      const el = B ? B.withBox(raw, W) : raw;
+      let x = Number(el.x_mm) || 0;
       const y = Number(el.y_mm) || 0;
+      const boxW = Number(el.box_width_mm) || 0;
+      const aligned = (el.align === 'center' || el.align === 'right') && boxW > 0;
       let w = 4, h = 4;
       if (el.type === 'text') {
         const text = fillPlaceholders(el.text, data) || 'testo';
         const hmm = el.height_mm || (el.height_dots ? (el.height_dots / dpi) * 25.4 : 3);
-        h = hmm; w = Math.max(6, text.length * hmm * 0.62);
+        h = hmm; w = Math.max(6, text.length * hmm * 0.55);
+        if (aligned && B) x = B.alignInBox(x, w, el.align, boxW);
       } else if (el.type === 'barcode128' || el.type === 'code39' || el.type === 'code93' || el.type === 'ean13') {
-        const text = fillPlaceholders(el.text, data);
-        h = el.bar_height_mm || 10; w = Math.max(20, (text.length || 6) * 2.4);
+        const text = fillPlaceholders(el.text, data) || (el.type === 'ean13' ? '000000000000' : '000');
+        const moduleMm = (el.module_width || 2) / (dpi / 25.4);
+        const mods = B ? B.widthModules(el.type, text) : null;
+        // Larghezza reale codificata quando disponibile (più precisa della stima).
+        w = mods ? mods * moduleMm : Math.max(20, (text.length || 6) * 2.4);
+        h = el.bar_height_mm || 10;
         if (el.show_text !== false) h += 3.5;
+        if (aligned && B) x = B.alignedX(el.type, text, x, moduleMm, el.align, boxW);
       } else if (el.type === 'qrcode') {
         w = h = (el.magnification || 4) * 5;
       } else if (el.type === 'datamatrix') {
@@ -174,7 +192,11 @@
       } else if (el.type === 'box' || el.type === 'line') {
         w = Number(el.width_mm) || 0; h = Math.max(Number(el.height_mm) || 0, el.thickness_mm || 0.3);
       }
-      boxes.push({ index, type: el.type, x, y, w, h });
+      const box = { index, type: el.type, x, y, w, h };
+      if (aligned && (el.type === 'text' || ['barcode128', 'code39', 'code93', 'ean13'].includes(el.type))) {
+        box.guide = { x: Number(el.x_mm) || 0, w: boxW, align: el.align, auto: !(Number(raw.box_width_mm) > 0) };
+      }
+      boxes.push(box);
     });
     return boxes;
   }

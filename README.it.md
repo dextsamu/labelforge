@@ -34,7 +34,7 @@ Progetta le etichette visivamente, compila i campi (o scansionali) e stampa via 
 | 🖨️ **Connessioni multiple** | Rete (porta raw 9100), stampante Windows per nome (API Win32 — funziona con qualsiasi porta, anche quelle virtuali di Zebra Setup Utilities), o device USB su Linux/Mac. |
 | 🌐 **Più linguaggi** | Stampa in **ZPL** (testato) e, in via sperimentale, **TSPL / EPL / CPCL / EZPL**. Stessi editor e anteprima; cambiano solo i comandi generati. |
 | 🧩 **Template dinamici** | Template JSON con testo, codici a barre (Code128, Code39, Code93, EAN‑13), QR code, DataMatrix, linee e riquadri. Misure in mm; 203/300 dpi. |
-| 🎨 **Editor visuale** | Anteprima live con **barcode Code128 e QR reali**; seleziona, trascina, ridimensiona e aggancia gli elementi a una griglia. Allineamento barcode (sinistra/centro/destra entro una larghezza box). Nessuna modifica manuale del JSON. |
+| 🎨 **Editor visuale** | Anteprima live con **barcode Code128 e QR reali**; seleziona, trascina, ridimensiona e aggancia gli elementi a una griglia. Allineamento sinistra/centro/destra con un clic per testo e barcode (sull'etichetta o entro una box), con guida visiva. Nessuna modifica manuale del JSON. |
 | ⌨️ **Campi intelligenti** | Campi `{{campo}}` come testo, menu a tendina o liste con quantità per voce (una etichetta per unità). |
 | ⚡ **Scansiona e stampa** | Stampa automatica dopo la scansione (il lettore si comporta come tastiera) — ideale per raffiche. |
 | 📄 **Stampa in blocco da CSV** | Importa un CSV e stampa una etichetta per riga (le colonne riempiono i `{{campi}}`). |
@@ -174,6 +174,17 @@ I template stanno in `templates/*.json`. Esempio minimo:
 ```
 
 **Tipi di elemento:** `text`, `barcode128`, `code39`, `code93`, `ean13`, `datamatrix`, `qrcode`, `box`, `line`.
+
+**Allineamento** (testo e barcode lineari): `"align": "left" | "center" | "right"` con
+`"box_width_mm"` facoltativo. L'elemento viene allineato dentro una box che parte da `x_mm` ed è
+larga `box_width_mm`; se `box_width_mm` manca, la box è l'intera etichetta e `x_mm` fa da margine
+su entrambi i lati (quindi `"align": "center"` centra sull'etichetta). I dati a lunghezza variabile
+restano centrati. In ZPL il testo usa il blocco nativo `^FB`; nei linguaggi sperimentali la
+posizione è stimata.
+
+```json
+{ "type": "barcode128", "x_mm": 3, "y_mm": 11, "bar_height_mm": 8, "text": "{{code}}", "align": "center" }
+```
 **Tipi di campo** (`field_meta`): `select` → menu a tendina, `multi-qty` → lista con quantità per
 voce (una etichetta per unità). Esempi inclusi: prodotto, spedizione, QR e `product-variants`
 (tendina + lista quantità).

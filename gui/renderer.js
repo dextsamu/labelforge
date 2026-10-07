@@ -553,8 +553,20 @@ function updateUndoButtons() {
 
 // Etichette come chiavi i18n (risolte con t() al render).
 const ALIGN_OPTS = [['left', 'align.left'], ['center', 'align.center'], ['right', 'align.right']];
+const ALIGNABLE = ['text', 'barcode128', 'code39', 'code93', 'ean13'];
+const LINEAR_BARCODES = ['barcode128', 'code39', 'code93', 'ean13'];
+
+// Imposta l'allineamento di un elemento dai pulsanti rapidi (con undo).
+// Senza box_width_mm, centro/destra si riferiscono all'intera etichetta (x_mm = margine).
+function setElementAlign(index, align) {
+  readEditorIntoDraft(); pushSnapshot();
+  const elem = editing.elements[index];
+  if (!elem) return;
+  if (align === 'left') delete elem.align; else elem.align = align;
+  renderEditorElements(); drawEditorCanvas();
+}
 const ELEMENT_PROPS = {
-  text: [['text', 'p.text', 'text', 'full'], ['height_mm', 'p.h', 'number'], ['width_mm', 'p.w', 'number'], ['font', 'p.font', 'text']],
+  text: [['text', 'p.text', 'text', 'full'], ['height_mm', 'p.h', 'number'], ['width_mm', 'p.w', 'number'], ['font', 'p.font', 'text'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   barcode128: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   code39: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   ean13: [['text', 'p.dataDigits', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
@@ -607,6 +619,17 @@ function renderEditorElements() {
       const enc = document.createElement('input'); enc.type = 'checkbox'; enc.checked = elem.enabled !== false; enc.dataset.prop = 'enabled';
       en.append(enc, document.createTextNode(' ' + t('dyn.elActive')));
       bar.append(typeSel, lbl, en);
+      // Pulsanti rapidi di allineamento (testo e barcode lineari).
+      if (ALIGNABLE.includes(elem.type)) {
+        const seg = document.createElement('div'); seg.className = 'alignseg';
+        [['left', '⇤'], ['center', '↔'], ['right', '⇥']].forEach(([a, icon]) => {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'qbtn' + ((elem.align || 'left') === a ? ' on' : '');
+          b.textContent = icon; b.title = t('align.' + a) + (a !== 'left' && !(Number(elem.box_width_mm) > 0) ? ' — ' + t('align.autoHint') : '');
+          b.onclick = () => setElementAlign(i, a);
+          seg.appendChild(b);
+        });
+        bar.appendChild(seg);
+      }
       row.appendChild(bar);
 
       const grid = document.createElement('div'); grid.className = 'grid';
@@ -627,6 +650,7 @@ function renderEditorElements() {
         } else {
           input = document.createElement('input'); input.type = kind === 'number' ? 'number' : 'text'; if (kind === 'number') input.step = '0.5';
           input.value = elem[prop] ?? '';
+          if (prop === 'box_width_mm') { input.placeholder = t('p.boxwPh'); input.title = t('p.boxwHint'); }
         }
         input.dataset.prop = prop;
         fld.appendChild(input); grid.appendChild(fld);
@@ -759,6 +783,12 @@ function drawEditorCanvas() {
   boxes.forEach((b) => {
     const w = Math.max(b.w, 2), h = Math.max(b.h, 2);
     if (b.index === editorSel) {
+      // Guida visiva della box di allineamento (tratteggiata) + asse di centratura.
+      if (b.guide) {
+        const g = b.guide;
+        ov += `<rect class="guide" x="${g.x.toFixed(2)}" y="${(b.y - 0.6).toFixed(2)}" width="${g.w.toFixed(2)}" height="${(h + 1.2).toFixed(2)}"/>`;
+        if (g.align === 'center') ov += `<line class="guide-axis" x1="${(g.x + g.w / 2).toFixed(2)}" y1="0" x2="${(g.x + g.w / 2).toFixed(2)}" y2="${H}"/>`;
+      }
       ov += `<rect class="sel" x="${b.x}" y="${b.y}" width="${w}" height="${h}"/>`;
       ov += `<rect class="handle" data-handle="${b.index}" x="${(b.x + w - 1.2).toFixed(2)}" y="${(b.y + h - 1.2).toFixed(2)}" width="2.4" height="2.4"/>`;
     }
@@ -813,7 +843,7 @@ function startDrag(e, index, mode) {
       const w = snapVal(Math.max(1, pt.x - orig.x));
       const h = snapVal(Math.max(1, pt.y - orig.y));
       if (elem.type === 'text') { elem.height_mm = Math.max(1, h); elem.width_mm = Math.max(1, h); }
-      else if (elem.type === 'barcode128') { elem.bar_height_mm = Math.max(2, h); }
+      else if (LINEAR_BARCODES.includes(elem.type)) { elem.bar_height_mm = Math.max(2, h); }
       else if (elem.type === 'qrcode') { elem.magnification = Math.min(10, Math.max(1, Math.round(w / 5))); }
       else { elem.width_mm = Math.max(1, w); elem.height_mm = Math.max(0, snapVal(pt.y - orig.y)); }
     }
