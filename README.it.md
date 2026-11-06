@@ -35,7 +35,7 @@ Progetta le etichette visivamente, compila i campi (o scansionali) e stampa via 
 | 🌐 **Più linguaggi** | Stampa in **ZPL** (testato) e, in via sperimentale, **TSPL / EPL / CPCL / EZPL**. Stessi editor e anteprima; cambiano solo i comandi generati. |
 | 🧩 **Template dinamici** | Template JSON con testo, codici a barre (Code128, Code39, Code93, EAN‑13), QR code, DataMatrix, linee e riquadri. Misure in mm; 203/300 dpi. |
 | 🎨 **Editor visuale** | Anteprima live con **barcode Code128 e QR reali**; seleziona, trascina, ridimensiona e aggancia gli elementi a una griglia. Allineamento sinistra/centro/destra con un clic per testo e barcode (sull'etichetta o entro una box), con guida visiva. Nessuna modifica manuale del JSON. |
-| ⌨️ **Campi intelligenti** | Campi `{{campo}}` come testo, menu a tendina o liste con quantità per voce (una etichetta per unità). |
+| ⌨️ **Campi intelligenti** | Campi `{{campo}}` come testo, menu a tendina o liste con quantità per voce (una etichetta per unità). Data/ora automatiche, scadenze (`{{date+30}}`) e numerazione progressiva (`{{counter:4}}`). |
 | ⚡ **Scansiona e stampa** | Stampa automatica dopo la scansione (il lettore si comporta come tastiera) — ideale per raffiche. |
 | 📄 **Stampa in blocco da CSV** | Importa un CSV e stampa una etichetta per riga (le colonne riempiono i `{{campi}}`). |
 | 🔁 **Condividi i template** | Esporta/importa i template come `.json`; testa la connessione alla stampante prima di stampare. |
@@ -185,6 +185,24 @@ posizione è stimata.
 ```json
 { "type": "barcode128", "x_mm": 3, "y_mm": 11, "bar_height_mm": 8, "text": "{{code}}", "align": "center" }
 ```
+
+**Campi automatici** (calcolati in stampa, niente da compilare):
+
+| Segnaposto | Risultato |
+|---|---|
+| `{{date}}` | data di oggi, `DD/MM/YYYY` |
+| `{{date+30}}` · `{{date+6m}}` · `{{date-1y}}` | data con scarto in giorni / mesi / anni (scadenze) |
+| `{{date:YYYY-MM-DD}}` | formato personalizzato (`YYYY YY MM DD HH mm ss`) |
+| `{{time}}` · `{{now}}` | `HH:mm` · `DD/MM/YYYY HH:mm` |
+| `{{counter}}` · `{{counter:4}}` | numero progressivo per etichetta stampata (copie incluse) · con zeri `0001` |
+
+Il numero di partenza si imposta nella vista di stampa (*Contatore da*, prosegue da solo dopo ogni
+stampa), con `"counter_start"` nel template, `counterStart` nell'API HTTP o `--counter-start` da CLI.
+
+**Testo su più righe:** `"max_lines": 3` manda a capo il testo dentro `box_width_mm` (o la larghezza
+dell'etichetta). In ZPL l'a capo lo fa la stampante (`^FB`).
+
+QR e DataMatrix sono mostrati alla **dimensione reale di stampa** e si possono allineare anch'essi.
 **Tipi di campo** (`field_meta`): `select` → menu a tendina, `multi-qty` → lista con quantità per
 voce (una etichetta per unità). Esempi inclusi: prodotto, spedizione, QR e `product-variants`
 (tendina + lista quantità).

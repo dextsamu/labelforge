@@ -4,9 +4,10 @@
 // fedelmente posizioni e dimensioni (in mm) di testo, barcode, QR, linee e riquadri,
 // così da vedere il layout mentre si compila o si modifica un template.
 (function () {
+  // Segnaposto + campi automatici (data, ora, contatore): logica condivisa in textkit.js.
   function fillPlaceholders(str, data) {
     if (typeof str !== 'string') return '';
-    return str.replace(/\{\{\s*([\w.\-]+)\s*\}\}/g, (_, k) => {
+    return window.TextKit ? window.TextKit.fill(str, data) : str.replace(/\{\{\s*([\w.\-]+)\s*\}\}/g, (_, k) => {
       const v = (data || {})[k];
       return v === undefined || v === null || v === '' ? '' : String(v);
     });
@@ -57,6 +58,33 @@
       `<text x="${(x + size / 2).toFixed(2)}" y="${(y + size / 2).toFixed(2)}" font-size="${(size / 6).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8">QR</text>`;
   }
 
+  // Righe del testo in anteprima: con max_lines > 1 va a capo dentro la box (larghezza carattere stimata).
+  const CHAR_W = 0.55; // larghezza media carattere / altezza (Arial)
+  function textLines(el, text, hmm) {
+    const maxLines = Math.max(1, Math.floor(Number(el.max_lines) || 1));
+    const boxW = Number(el.box_width_mm) || 0;
+    if (maxLines <= 1 || boxW <= 0 || !window.TextKit) return [text];
+    return window.TextKit.wrapText(text, boxW / (hmm * CHAR_W), maxLines);
+  }
+
+  // Lato reale (mm) di QR/DataMatrix: moduli × ingrandimento (dot) / dot per mm — come in stampa.
+  // QR: moduli dalla matrice calcolata (livello Q come ZPL "QA,"); DataMatrix: tabella ECC200.
+  function squareSizeMm(el, text, dpi, qrCache) {
+    const dpm = dpi / 25.4;
+    if (el.type === 'qrcode') {
+      const m = qrCache && qrCache[text];
+      const n = m && m.size ? m.size : 25; // stima finché la matrice non è pronta
+      return n * (el.magnification || 4) / dpm;
+    }
+    const exact = qrCache && qrCache['dmn:' + text];
+    const n = exact || (window.TextKit ? window.TextKit.dmModules(text) : 16);
+    return n * (el.magnification || 5) / dpm;
+  }
+  function alignSquareX(el, x, size) {
+    const box = Number(el.box_width_mm) || 0;
+    return window.Barcode && box > 0 ? window.Barcode.alignInBox(x, size, el.align, box) : x;
+  }
+
   function renderElement(el, dpi, data, qrCache) {
     const x = Number(el.x_mm) || 0;
     const y = Number(el.y_mm) || 0;
@@ -71,6 +99,13 @@
         let tx = x, anchor = 'start';
         if (el.align === 'center' && boxW > 0) { tx = x + boxW / 2; anchor = 'middle'; }
         else if (el.align === 'right' && boxW > 0) { tx = x + boxW; anchor = 'end'; }
+        const lines = textLines(el, text, hmm);
+        if (lines.length > 1) {
+          // Testo su più righe: a capo stimato (la stampante ZPL lo calcola con ^FB).
+          const step = hmm * 1.15;
+          const spans = lines.map((ln, k) => `<tspan x="${tx.toFixed(2)}" y="${(y + k * step).toFixed(2)}">${esc(ln) || ' '}</tspan>`).join('');
+          return `<text font-size="${fontSize.toFixed(2)}" font-family="Arial, sans-serif" dominant-baseline="text-before-edge" text-anchor="${anchor}" fill="#111">${spans}</text>`;
+        }
         return `<text x="${tx.toFixed(2)}" y="${y}" font-size="${fontSize.toFixed(2)}" font-family="Arial, sans-serif" dominant-baseline="text-before-edge" text-anchor="${anchor}" fill="#111">${esc(text) || ' '}</text>`;
       }
       case 'barcode128': {
@@ -114,18 +149,19 @@
       }
       case 'datamatrix': {
         const text = fillPlaceholders(el.text, data);
-        const size = (el.magnification || 5) * 4; // ~mm indicativi
+        const size = squareSizeMm(el, text, dpi, qrCache);
+        const sx = alignSquareX(el, x, size);
         const url = qrCache && qrCache['dm:' + text];
         if (url) {
-          return `<image x="${x}" y="${y}" width="${size}" height="${size}" href="${url}" style="image-rendering:pixelated"/>`;
+          return `<image x="${sx.toFixed(2)}" y="${y}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" href="${url}" style="image-rendering:pixelated"/>`;
         }
-        return `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="#fff" stroke="#111" stroke-width="0.2"/>` +
-          `<text x="${(x + size / 2).toFixed(2)}" y="${(y + size / 2).toFixed(2)}" font-size="${(size / 6).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8">DM</text>`;
+        return `<rect x="${sx.toFixed(2)}" y="${y}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" fill="#fff" stroke="#111" stroke-width="0.2"/>` +
+          `<text x="${(sx + size / 2).toFixed(2)}" y="${(y + size / 2).toFixed(2)}" font-size="${(size / 6).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8">DM</text>`;
       }
       case 'qrcode': {
         const text = fillPlaceholders(el.text, data);
-        const size = (el.magnification || 4) * 5; // ~mm indicativi
-        return qrBox(text, x, y, size, qrCache);
+        const size = squareSizeMm(el, text, dpi, qrCache);
+        return qrBox(text, alignSquareX(el, x, size), y, size, qrCache);
       }
       case 'line':
       case 'box': {
@@ -159,7 +195,7 @@
 
   // Bounding box (in mm) di ogni elemento, per l'interazione (selezione/trascinamento) nell'editor.
   // Se l'elemento è allineato, include anche `guide` = { x, w } della box (per la guida visiva).
-  function computeBoxes(template, data) {
+  function computeBoxes(template, data, qrCache) {
     const dpi = template.dpi || 203;
     const W = Number(template.width_mm) || 50;
     const B = typeof window !== 'undefined' ? window.Barcode : null;
@@ -174,7 +210,9 @@
       if (el.type === 'text') {
         const text = fillPlaceholders(el.text, data) || 'testo';
         const hmm = el.height_mm || (el.height_dots ? (el.height_dots / dpi) * 25.4 : 3);
-        h = hmm; w = Math.max(6, text.length * hmm * 0.55);
+        const lines = textLines(el, text, hmm);
+        h = hmm; w = Math.max(6, text.length * hmm * CHAR_W);
+        if (lines.length > 1) { h = hmm * (1 + 1.15 * (lines.length - 1)); w = Math.max(6, Math.max(...lines.map((l) => l.length)) * hmm * CHAR_W); }
         if (aligned && B) x = B.alignInBox(x, w, el.align, boxW);
       } else if (el.type === 'barcode128' || el.type === 'code39' || el.type === 'code93' || el.type === 'ean13') {
         const text = fillPlaceholders(el.text, data) || (el.type === 'ean13' ? '000000000000' : '000');
@@ -185,15 +223,15 @@
         h = el.bar_height_mm || 10;
         if (el.show_text !== false) h += 3.5;
         if (aligned && B) x = B.alignedX(el.type, text, x, moduleMm, el.align, boxW);
-      } else if (el.type === 'qrcode') {
-        w = h = (el.magnification || 4) * 5;
-      } else if (el.type === 'datamatrix') {
-        w = h = (el.magnification || 5) * 4;
+      } else if (el.type === 'qrcode' || el.type === 'datamatrix') {
+        w = h = squareSizeMm(el, fillPlaceholders(el.text, data), dpi, qrCache);
+        if (aligned) x = alignSquareX(el, x, w);
       } else if (el.type === 'box' || el.type === 'line') {
         w = Number(el.width_mm) || 0; h = Math.max(Number(el.height_mm) || 0, el.thickness_mm || 0.3);
       }
       const box = { index, type: el.type, x, y, w, h };
-      if (aligned && (el.type === 'text' || ['barcode128', 'code39', 'code93', 'ean13'].includes(el.type))) {
+      const wraps = el.type === 'text' && Number(el.max_lines) > 1 && boxW > 0;
+      if ((aligned || wraps) && (el.type === 'text' || ['barcode128', 'code39', 'code93', 'ean13', 'qrcode', 'datamatrix'].includes(el.type))) {
         box.guide = { x: Number(el.x_mm) || 0, w: boxW, align: el.align, auto: !(Number(raw.box_width_mm) > 0) };
       }
       boxes.push(box);

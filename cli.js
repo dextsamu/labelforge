@@ -17,7 +17,7 @@ Zebra ZD410 - Stampa etichette (ZPL)
 Uso:
   node cli.js print --template <nome-o-file> [--data file.json] [--set campo=valore ...]
                      (--ip <indirizzo> [--port 9100] | --printer <NOME_STAMPANTE_WINDOWS> | --usb <PORTA>)
-                     [--copies N] [--out file.zpl] [--dry-run]
+                     [--copies N] [--counter-start N] [--out file.zpl] [--dry-run]
 
   node cli.js list-templates
   node cli.js list-printers
@@ -35,6 +35,9 @@ Esempi:
   node cli.js print --template box-102x51 --data ordine.json --printer "Zebra"
   node cli.js print --template shipping-102x152 --data ordini.json --ip 192.168.1.50 --copies 2
   node cli.js list-printers
+
+Campi automatici nei template: {{date}} {{date+30}} {{date:YYYY-MM-DD}} {{time}} {{now}}
+{{counter}} {{counter:4}} (numero progressivo per etichetta; partenza con --counter-start).
 
 Nota Windows: --printer "Nome" (come mostrato da "list-printers") funziona con qualsiasi
 tipo di porta (USB, rete, WSD, porte virtuali) ed è il metodo consigliato. --usb <PORTA>
@@ -149,7 +152,9 @@ async function cmdPrint(args) {
   const template = loadTemplate(args.template);
   const dataList = loadDataList(args);
   const copies = args.copies ? Number(args.copies) : 1;
-  const zpl = buildLabel(template, dataList, { copiesPerLabel: copies });
+  const buildOpts = { copiesPerLabel: copies };
+  if (args['counter-start'] != null) buildOpts.counterStart = Number(args['counter-start']);
+  const zpl = buildLabel(template, dataList, buildOpts);
 
   if (args.out) {
     fs.writeFileSync(args.out, zpl);

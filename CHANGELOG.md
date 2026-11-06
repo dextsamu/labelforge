@@ -2,6 +2,17 @@
 
 Tutte le modifiche rilevanti a LabelForge. / All notable changes to LabelForge.
 
+## v1.19.0
+- 📅 **Campi automatici** (niente da compilare): `{{date}}`, `{{date+30}}` / `+6m` / `+1y` (scadenze),
+  `{{date:YYYY-MM-DD}}`, `{{time}}`, `{{now}}`, `{{counter}}` / `{{counter:4}}` (un numero per etichetta,
+  copie incluse). Campo **Contatore da** nella stampa, che prosegue da solo; `counterStart` nell'API,
+  `--counter-start` da CLI. I dati dell'utente con lo stesso nome hanno la precedenza. / Automatic date, expiry and counter fields.
+- 📝 **Testo su più righe** (`max_lines`): a capo dentro la box o la larghezza etichetta; ZPL nativo `^FB`. / Multi-line text.
+- 🔳 **QR e DataMatrix alla dimensione reale** in anteprima e nell'editor (prima era una stima), con
+  allineamento sinistra/centro/destra. Anteprima QR con lo stesso livello di correzione della stampa (Q). / True-size QR/DataMatrix + alignment.
+- 🤖 **Note di rilascio automatiche**: il workflow scrive la Release da `release-notes/<tag>.md` o dal CHANGELOG. / Automatic release notes.
+- 🧪 7 nuovi smoke test (21 totali); output dei template esistenti invariato rispetto a v1.18.0.
+
 ## v1.18.0
 Estende l'allineamento introdotto da @PaloTrucoo in v1.17.0. / Builds on @PaloTrucoo's alignment from v1.17.0.
 - 🔤 **Allineamento del testo** (sinistra/centro/destra). In ZPL usa il blocco nativo `^FB` (esatto);

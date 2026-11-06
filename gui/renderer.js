@@ -26,8 +26,33 @@ let defaultLanguage = 'zpl'; // linguaggio predefinito per i nuovi modelli
 
 function fillPh(str, data) {
   if (typeof str !== 'string') return '';
-  return str.replace(/\{\{\s*([\w.\-]+)\s*\}\}/g, (_, k) => { const v = (data || {})[k]; return v == null ? '' : String(v); });
+  return window.TextKit.fill(str, data); // include i campi automatici (data, ora, contatore)
 }
+
+// ---- Contatore progressivo ({{counter}}) ----
+// Il valore di partenza si ricorda per modello: dopo una stampa riuscita prosegue da dove era arrivato.
+function templateUsesCounter(tpl) { return !!(tpl && window.TextKit.usesBuiltin(tpl, 'counter')); }
+function counterStartValue() {
+  const v = Number(el('counterStart') && el('counterStart').value);
+  return Number.isFinite(v) ? v : 1;
+}
+function refreshCounterField() {
+  const box = el('counterField'); if (!box) return;
+  const uses = templateUsesCounter(rawTemplate);
+  box.style.display = uses ? '' : 'none';
+  if (!uses || !current) return;
+  const saved = (settings.counters || {})[current.file];
+  el('counterStart').value = saved != null ? saved : (rawTemplate.counter_start != null ? rawTemplate.counter_start : 1);
+}
+function advanceCounter(printed) {
+  if (!current || !templateUsesCounter(rawTemplate)) return;
+  const next = counterStartValue() + (Number(printed) || 0);
+  el('counterStart').value = next;
+  settings.counters = Object.assign({}, settings.counters, { [current.file]: next });
+  window.zebra.saveSettings({ counters: settings.counters });
+}
+// Contesto dei campi automatici per l'anteprima (data/ora attuali, primo numero del contatore).
+function previewCtx() { return { now: new Date(), counter: counterStartValue() }; }
 function qrValuesOf(tpl, data) {
   const vals = [];
   (tpl.elements || []).forEach((e) => { if (e.type === 'qrcode') { const v = fillPh(e.text, data); if (v) vals.push(v); } });
@@ -51,7 +76,16 @@ async function ensureQR(values, rerender, dmValues) {
     const key = 'dm:' + v;
     if (!(key in qrCache)) {
       qrCache[key] = '';
-      try { const url = await window.zebra.dmImage(v); if (url) { qrCache[key] = url; added = true; } } catch (_) {}
+      try {
+        const url = await window.zebra.dmImage(v);
+        if (url) {
+          qrCache[key] = url; added = true;
+          // Larghezza PNG (header IHDR, byte 16-19) / 8 px per modulo = lato reale in moduli.
+          const head = atob(url.split(',')[1].slice(0, 44));
+          const w = ((head.charCodeAt(16) << 24) | (head.charCodeAt(17) << 16) | (head.charCodeAt(18) << 8) | head.charCodeAt(19)) >>> 0;
+          if (w > 0) qrCache['dmn:' + v] = Math.round(w / 8);
+        }
+      } catch (_) {}
     }
   }
   if (added && typeof rerender === 'function') rerender();
@@ -253,6 +287,7 @@ function updatePrintPreview() {
   }
   const multi = collectMulti();
   if (multi) { const first = multi.items[0]; data[multi.field] = first ? first.value : (current.fields.find(f => f.name === multi.field)?.options?.[0] || ''); }
+  data.__lf = previewCtx();
   ensureQR(qrValuesOf(rawTemplate, data), updatePrintPreview, dmValuesOf(rawTemplate, data));
   el('previewFrame').innerHTML = window.LabelPreview.renderPreviewSVG(rawTemplate, data, collectEnabledIndices(), qrCache);
   el('previewNote').textContent = `${rawTemplate.width_mm}×${rawTemplate.height_mm} mm · ${rawTemplate.dpi || 203} dpi`;
@@ -334,10 +369,11 @@ async function doPrint() {
       file: current.file, data, copies: el('copies').value, connection: getConnection(),
       enabledIndices: collectEnabledIndices(), rows: importedRows,
       darkness: printDarkness, speed: printSpeed,
+      counterStart: templateUsesCounter(rawTemplate) ? counterStartValue() : undefined,
     };
     const res = await window.zebra.print(payload);
     el('printBtn').disabled = false;
-    if (res && res.ok) { setStatus('ok', t('dyn.sentCsv', { n: res.count })); recordHistory(payload, res.count); }
+    if (res && res.ok) { setStatus('ok', t('dyn.sentCsv', { n: res.count })); recordHistory(payload, res.count); advanceCounter(res.count); updatePrintPreview(); }
     else setStatus('err', t('dyn.printErr', { e: res?.error || '?' }));
     return;
   }
@@ -353,12 +389,14 @@ async function doPrint() {
     file: current.file, data, copies: el('copies').value, connection: getConnection(),
     enabledIndices: collectEnabledIndices(), multiField: multi ? multi.field : null, multiItems: multi ? multi.items : null,
     darkness: printDarkness, speed: printSpeed,
+    counterStart: templateUsesCounter(rawTemplate) ? counterStartValue() : undefined,
   };
   const res = await window.zebra.print(payload);
   el('printBtn').disabled = false;
   if (res && res.ok) {
     setStatus('ok', t('dyn.sent', { n: res.count }));
     recordHistory(payload, res.count);
+    advanceCounter(res.count); updatePrintPreview();
     if (el('autoprint').checked && scanFieldName) { const s = el('f_' + scanFieldName); if (s) { s.value = ''; s.focus(); } updatePrintPreview(); }
   } else setStatus('err', t('dyn.printErr', { e: res?.error || '?' }));
 }
@@ -493,6 +531,7 @@ async function selectTemplate(file) {
   renderElementsToggle(current);
   renderTemplateList();
   el('copies').value = defaultCopies || 1;
+  refreshCounterField();
   updatePrintPreview();
   window.zebra.saveSettings({ lastTemplate: file });
   // Se siamo in modalità Editor, ricarica l'editor con il modello appena scelto
@@ -553,7 +592,7 @@ function updateUndoButtons() {
 
 // Etichette come chiavi i18n (risolte con t() al render).
 const ALIGN_OPTS = [['left', 'align.left'], ['center', 'align.center'], ['right', 'align.right']];
-const ALIGNABLE = ['text', 'barcode128', 'code39', 'code93', 'ean13'];
+const ALIGNABLE = ['text', 'barcode128', 'code39', 'code93', 'ean13', 'qrcode', 'datamatrix'];
 const LINEAR_BARCODES = ['barcode128', 'code39', 'code93', 'ean13'];
 
 // Imposta l'allineamento di un elemento dai pulsanti rapidi (con undo).
@@ -566,13 +605,13 @@ function setElementAlign(index, align) {
   renderEditorElements(); drawEditorCanvas();
 }
 const ELEMENT_PROPS = {
-  text: [['text', 'p.text', 'text', 'full'], ['height_mm', 'p.h', 'number'], ['width_mm', 'p.w', 'number'], ['font', 'p.font', 'text'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
+  text: [['text', 'p.text', 'text', 'full'], ['height_mm', 'p.h', 'number'], ['width_mm', 'p.w', 'number'], ['font', 'p.font', 'text'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number'], ['max_lines', 'p.maxlines', 'number']],
   barcode128: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   code39: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   ean13: [['text', 'p.dataDigits', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   code93: [['text', 'p.data', 'text', 'full'], ['bar_height_mm', 'p.barh', 'number'], ['module_width', 'p.module', 'number'], ['show_text', 'p.showtext', 'bool'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
-  datamatrix: [['text', 'p.data', 'text', 'full'], ['magnification', 'p.dmsize', 'number']],
-  qrcode: [['text', 'p.data', 'text', 'full'], ['magnification', 'p.mag', 'number']],
+  datamatrix: [['text', 'p.data', 'text', 'full'], ['magnification', 'p.dmsize', 'number'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
+  qrcode: [['text', 'p.data', 'text', 'full'], ['magnification', 'p.mag', 'number'], ['align', 'p.align', 'select', null, ALIGN_OPTS], ['box_width_mm', 'p.boxw', 'number']],
   box: [['width_mm', 'p.w', 'number'], ['height_mm', 'p.h', 'number'], ['thickness_mm', 'p.thick', 'number']],
   line: [['width_mm', 'p.w', 'number'], ['height_mm', 'p.h', 'number'], ['thickness_mm', 'p.thick', 'number']],
 };
@@ -651,6 +690,7 @@ function renderEditorElements() {
           input = document.createElement('input'); input.type = kind === 'number' ? 'number' : 'text'; if (kind === 'number') input.step = '0.5';
           input.value = elem[prop] ?? '';
           if (prop === 'box_width_mm') { input.placeholder = t('p.boxwPh'); input.title = t('p.boxwHint'); }
+          if (prop === 'max_lines') { input.step = '1'; input.min = '1'; input.placeholder = '1'; }
         }
         input.dataset.prop = prop;
         fld.appendChild(input); grid.appendChild(fld);
@@ -697,7 +737,7 @@ function readElementRow(row, prevType) {
     if (prop === 'enabled') { obj.enabled = inp.checked; return; }
     if (prop === 'show_text') { obj.show_text = (val === 'true'); return; }
     if (val === '') return;
-    const numeric = ['x_mm', 'y_mm', 'height_mm', 'width_mm', 'bar_height_mm', 'module_width', 'magnification', 'thickness_mm', 'box_width_mm'];
+    const numeric = ['x_mm', 'y_mm', 'height_mm', 'width_mm', 'bar_height_mm', 'module_width', 'magnification', 'thickness_mm', 'box_width_mm', 'max_lines'];
     obj[prop] = numeric.includes(prop) ? Number(val) : val;
   });
   if (obj.enabled === true) delete obj.enabled; // default true: non serve salvarlo
@@ -741,9 +781,10 @@ function readEditorIntoDraft() {
 }
 
 function sampleData(tpl) {
-  const data = {};
+  // I campi automatici (data, ora, contatore) si calcolano da soli: niente valori di esempio.
+  const data = { __lf: { now: new Date(), counter: tpl.counter_start != null ? Number(tpl.counter_start) : 1 } };
   const ph = new Set();
-  (tpl.elements || []).forEach((e) => { const s = e.text || ''; const re = /\{\{\s*([\w.\-]+)\s*\}\}/g; let m; while ((m = re.exec(s))) ph.add(m[1]); });
+  (tpl.elements || []).forEach((e) => { window.TextKit.userPlaceholders(e.text || '').forEach((n) => ph.add(n)); });
   ph.forEach((name) => {
     if (/codice|cf/i.test(name)) data[name] = 'ABC-123456';
     else if ((tpl.field_meta || {})[name] && tpl.field_meta[name].options && tpl.field_meta[name].options[0]) data[name] = tpl.field_meta[name].options[0];
@@ -776,7 +817,7 @@ function drawEditorCanvas() {
   const allIdx = (editing.elements || []).map((_, i) => i); // in editor mostra tutti
   ensureQR(qrValuesOf(editing, data), drawEditorCanvas, dmValuesOf(editing, data));
   const visual = window.LabelPreview.renderPreviewSVG(editing, data, allIdx, qrCache).replace('<svg ', '<svg class="visual" ');
-  const boxes = window.LabelPreview.computeBoxes(editing, data);
+  const boxes = window.LabelPreview.computeBoxes(editing, data, qrCache);
 
   let ov = `<svg class="overlay" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">`;
   ov += gridSVG(W, H);
@@ -831,6 +872,9 @@ function startDrag(e, index, mode) {
   const start = clientToMm(e, liveOverlay());
   if (!start) return;
   const orig = { x: Number(elem.x_mm) || 0, y: Number(elem.y_mm) || 0 };
+  // Riquadro reale all'inizio del trascinamento (posizione allineata, lato reale di QR/DataMatrix).
+  const startBox = window.LabelPreview.computeBoxes(editing, sampleData(editing), qrCache)[index] || { x: orig.x, w: 1 };
+  const startMag = Number(elem.magnification) || (elem.type === 'qrcode' ? 4 : 5);
 
   let raf = null;
   const move = (ev) => {
@@ -840,11 +884,14 @@ function startDrag(e, index, mode) {
       elem.x_mm = Math.max(0, snapVal(orig.x + (pt.x - start.x)));
       elem.y_mm = Math.max(0, snapVal(orig.y + (pt.y - start.y)));
     } else {
-      const w = snapVal(Math.max(1, pt.x - orig.x));
+      const w = snapVal(Math.max(1, pt.x - startBox.x));
       const h = snapVal(Math.max(1, pt.y - orig.y));
       if (elem.type === 'text') { elem.height_mm = Math.max(1, h); elem.width_mm = Math.max(1, h); }
       else if (LINEAR_BARCODES.includes(elem.type)) { elem.bar_height_mm = Math.max(2, h); }
-      else if (elem.type === 'qrcode') { elem.magnification = Math.min(10, Math.max(1, Math.round(w / 5))); }
+      else if (elem.type === 'qrcode' || elem.type === 'datamatrix') {
+        // Ingrandimento proporzionale al lato reale trascinato.
+        elem.magnification = Math.min(10, Math.max(1, Math.round(startMag * w / Math.max(0.5, startBox.w))));
+      }
       else { elem.width_mm = Math.max(1, w); elem.height_mm = Math.max(0, snapVal(pt.y - orig.y)); }
     }
     if (!raf) raf = requestAnimationFrame(() => { raf = null; drawEditorCanvas(); });
@@ -963,6 +1010,12 @@ async function init() {
   el('ipInput').addEventListener('change', () => { window.zebra.saveSettings({ ip: el('ipInput').value.trim() }); updateConnSummary(); });
   el('usbInput').addEventListener('change', () => { window.zebra.saveSettings({ usb: el('usbInput').value.trim() }); updateConnSummary(); });
   el('autoprint').addEventListener('change', () => window.zebra.saveSettings({ autoprint: el('autoprint').checked }));
+  if (el('counterStart')) el('counterStart').addEventListener('input', debounce(() => {
+    if (!current) return;
+    settings.counters = Object.assign({}, settings.counters, { [current.file]: counterStartValue() });
+    window.zebra.saveSettings({ counters: settings.counters });
+    updatePrintPreview();
+  }, 300));
   el('printBtn').addEventListener('click', doPrint);
 
   el('modePrint').addEventListener('click', () => setMode('print'));

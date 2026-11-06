@@ -211,11 +211,15 @@
   // - box_width_mm > 0  → quella indicata;
   // - altrimenti, se l'allineamento è centro/destra → "centra sull'etichetta":
   //   box = larghezza etichetta − 2 × x_mm (x_mm fa da margine su entrambi i lati).
+  // Anche il testo su più righe (max_lines > 1) usa la box come larghezza di a capo.
+  function needsBox(el) {
+    return !!el && ((el.align && el.align !== 'left') || (el.type === 'text' && Number(el.max_lines) > 1));
+  }
   function effectiveBoxWidth(el, labelWidthMm) {
     if (!el) return 0;
     const b = Number(el.box_width_mm);
     if (b > 0) return b;
-    if (!el.align || el.align === 'left') return 0;
+    if (!needsBox(el)) return 0;
     const W = Number(labelWidthMm) || 0;
     const x = Number(el.x_mm ?? el.x) || 0;
     return Math.max(0, W - 2 * x);
@@ -223,7 +227,7 @@
 
   // Copia dell'elemento con box_width_mm risolta (usata da anteprima e backend).
   function withBox(el, labelWidthMm) {
-    if (!el || !el.align || el.align === 'left') return el;
+    if (!needsBox(el)) return el;
     const b = effectiveBoxWidth(el, labelWidthMm);
     return b > 0 ? Object.assign({}, el, { box_width_mm: b }) : el;
   }

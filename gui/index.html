@@ -222,6 +222,10 @@
               <label for="copies" data-i18n="print.copies">Copies</label>
               <input type="number" id="copies" value="1" min="1" max="999" />
             </div>
+            <div class="field" id="counterField" style="max-width:170px;display:none;">
+              <label for="counterStart" data-i18n="print.counter">Counter from</label>
+              <input type="number" id="counterStart" value="1" min="0" data-i18n-title="print.counterT" title="First number for {{counter}}. It continues automatically after each print." />
+            </div>
           </div>
           <label class="checkbox">
             <input type="checkbox" id="autoprint" checked />
@@ -428,6 +432,7 @@
 
   <script src="i18n.js"></script>
   <script src="barcode.js"></script>
+  <script src="textkit.js"></script>
   <script src="preview.js"></script>
   <script src="renderer.js"></script>
 </body>

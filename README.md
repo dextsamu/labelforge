@@ -35,7 +35,7 @@ Design labels visually, fill fields (or scan them), and print over network or US
 | 🌐 **Multi-language output** | Prints **ZPL** (tested) and, experimentally, **TSPL / EPL / CPCL / EZPL**. Same editor and preview; only the generated commands differ. |
 | 🧩 **Dynamic templates** | JSON templates with text, barcodes (Code128, Code39, Code93, EAN‑13), QR code, DataMatrix, lines and boxes. Sizes in mm; 203/300 dpi. |
 | 🎨 **Visual editor** | Live preview with **real Code128 & QR** rendering; select, drag, resize and snap elements to a grid. One‑click left/center/right alignment for text and barcodes (on the label or within a box), with a visual guide. No JSON editing required. |
-| ⌨️ **Smart fields** | `{{field}}` inputs as text, dropdowns, or per‑option quantity lists (one label per unit). |
+| ⌨️ **Smart fields** | `{{field}}` inputs as text, dropdowns, or per‑option quantity lists (one label per unit). Automatic date/time, expiry dates (`{{date+30}}`) and serial counters (`{{counter:4}}`). |
 | ⚡ **Scan & print** | Auto‑print after a barcode scan (the scanner acts as a keyboard) — ideal for batches. |
 | 📄 **CSV batch print** | Import a CSV and print one label per row (columns map to `{{fields}}`). |
 | 🔁 **Share templates** | Export/import templates as `.json`; test the printer connection before printing. |
@@ -183,6 +183,24 @@ In ZPL text uses the native `^FB` block; in the experimental languages the posit
 ```json
 { "type": "barcode128", "x_mm": 3, "y_mm": 11, "bar_height_mm": 8, "text": "{{code}}", "align": "center" }
 ```
+
+**Automatic fields** (filled at print time, no input needed):
+
+| Placeholder | Result |
+|---|---|
+| `{{date}}` | today, `DD/MM/YYYY` |
+| `{{date+30}}` · `{{date+6m}}` · `{{date-1y}}` | date with offset in days / months / years (expiry dates) |
+| `{{date:YYYY-MM-DD}}` | custom format (`YYYY YY MM DD HH mm ss`) |
+| `{{time}}` · `{{now}}` | `HH:mm` · `DD/MM/YYYY HH:mm` |
+| `{{counter}}` · `{{counter:4}}` | progressive number per printed label (copies included) · zero‑padded `0001` |
+
+The counter start is set in the print view (*Counter from*, it continues after each print), with
+`"counter_start"` in the template, `counterStart` in the HTTP API or `--counter-start` in the CLI.
+
+**Multi‑line text:** `"max_lines": 3` wraps the text inside `box_width_mm` (or the label width).
+In ZPL the printer wraps it natively (`^FB`).
+
+QR codes and DataMatrix are shown at their **real printed size** and can be aligned too.
 **Field types** (`field_meta`): `select` → dropdown, `multi-qty` → per‑option quantity list (one
 label per unit). Included samples: product, shipping, QR, and `product-variants` (dropdown + qty list).
 

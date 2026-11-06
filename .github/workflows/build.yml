@@ -61,8 +61,17 @@ jobs:
           name: LabelForge-${{ matrix.name }}
           path: LabelForge-${{ matrix.name }}.zip
 
+      # Note di rilascio automatiche: release-notes/<tag>.md oppure la sezione del CHANGELOG
+      # (+ release-notes/_footer.md). Niente più modifiche manuali della Release.
+      - name: Release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: node .github/scripts/release-notes.js "${GITHUB_REF_NAME}" > RELEASE_NOTES.md
+
       - name: Attach to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: LabelForge ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
           files: LabelForge-${{ matrix.name }}.zip

@@ -162,7 +162,7 @@ function listWindowsPrinters() {
   });
 }
 
-async function doPrint({ file, data, copies, connection, enabledIndices, multiField, multiItems, rows, darkness, speed }) {
+async function doPrint({ file, data, copies, connection, enabledIndices, multiField, multiItems, rows, darkness, speed, counterStart }) {
   const template = loadTemplateForPrint(file);
   const mult = Number(copies) || 1;
 
@@ -188,6 +188,7 @@ async function doPrint({ file, data, copies, connection, enabledIndices, multiFi
   if (Array.isArray(enabledIndices)) opts.enabledIndices = enabledIndices;
   if (darkness !== undefined && darkness !== '' && darkness !== null) opts.darkness = darkness;
   if (speed !== undefined && speed !== '' && speed !== null) opts.speed = speed;
+  if (counterStart !== undefined && counterStart !== '' && counterStart !== null) opts.counterStart = Number(counterStart);
   const zpl = buildLabel(template, dataList, opts);
 
   if (connection.type === 'printer') {
@@ -301,7 +302,7 @@ ipcMain.handle('test-connection', async (_e, connection) => {
 // Matrice QR reale per l'anteprima (0/1 per modulo).
 ipcMain.handle('qr-matrix', (_e, text) => {
   try {
-    const qr = QRCode.create(String(text || ' '), { errorCorrectionLevel: 'M' });
+    const qr = QRCode.create(String(text || ' '), { errorCorrectionLevel: 'Q' }); // come ZPL "QA,"
     return { size: qr.modules.size, data: Array.from(qr.modules.data) };
   } catch (e) {
     return { size: 0, data: [] };

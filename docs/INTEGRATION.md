@@ -145,6 +145,7 @@ node cli.js print --template product-51x25 --set title=Test --out out.zpl --dry-
 | `enabledIndices` | number[] | Only render these element indices (others skipped). |
 | `darkness` | 0–30 | ZPL print darkness (`~SD`). Optional. |
 | `speed` | 1–6 | ZPL print speed (`^PR`). Optional. |
+| `counterStart` | number | First value of `{{counter}}` for this job (default: template `counter_start` or 1). Each printed label gets the next number, copies included. |
 | **Connection** (one of) | | |
 | `printer` | string | Windows printer name. |
 | `ip` (+ `port`) | string (+ number) | Network printer, default port 9100. |
@@ -167,6 +168,8 @@ If the connection is omitted, the HTTP server / watch folder use the app's saved
 
 - Output language follows the template's `language` field (ZPL by default; TSPL/EPL/CPCL/EZPL experimental).
 - Barcode/QR fields with empty data are skipped (avoids printer jams).
+- Automatic fields need no data: `{{date}}`, `{{date+30}}`, `{{date:YYYY-MM-DD}}`, `{{time}}`, `{{now}}`,
+  `{{counter}}` / `{{counter:4}}`. They are computed at print time; a value you send with the same name wins.
 - Layout (positions, alignment, sizes) lives in the template, not in the job: a field aligned
   `center` in the template stays centered whatever value you send (e.g. variable‑length codes).
   See the *Templates* section of the README for `align` / `box_width_mm`.
